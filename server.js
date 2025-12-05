@@ -43,6 +43,9 @@ client.on('message', (topic, message) => {
 
 // Web server
 app.use(express.static('web'));
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/web/index.html');
+});
 
 app.get('/api/history', (req, res) => {
   db.all('SELECT * FROM history ORDER BY id DESC LIMIT 100', [], (err, rows) => {
