@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Nuôi Cá Pro - Node.js</title>
+<style>
+  body{font-family:Arial;background:#e3f2fd;padding:20px;color:#000}
+  h1{color:#00695c}
+  .status{font-size:24px;margin:15px;padding:15px;background:white;border-radius:12px;box-shadow:0 4px 8px rgba(0,0,0,0.1)}
+  button{padding:15px 30px;margin:10px;font-size:18px;cursor:pointer;background:#00695c;color:white;border:none;border-radius:8px}
+  button:hover{background:#004d40}
+  table{width:100%;border-collapse:collapse;margin-top:20px}
+  th{background:#00695c;color:white;padding:12px}
+  td{padding:10px;border:1px solid #999;text-align:center}
+</style>
+</head><body>
+<h1>HỆ THỐNG NUÔI CÁ THÔNG MINH</h1>
+<div class="status">Mực nước: <b id="d">---</b> mm</div>
+<div class="status">Nhiệt độ: <b id="t">---</b> °C</div>
+<div class="status">Bơm: <b id="p">---</b> | Đèn: <b id="l">---</b></div>
+
+<button onclick="s('pump/on/web')">Bật bơm</button>
+<button onclick="s('pump/off/web')">Tắt bơm</button>
+<button onclick="s('light/on/web')">Bật đèn</button>
+<button onclick="s('light/off/web')">Tắt đèn</button>
+
+<h2>Lịch sử hoạt động (ghi rõ nguồn: web/esp/auto)</h2>
+<table><tr><th>Thời gian</th><th>Thiết bị</th><th>Hành động</th><th>Nguồn</th></tr>
+<tbody id="log"></tbody></table>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+socket.on('data', d => {
+  if(d.topic==='fish/distance') document.getElementById('d').innerText = d.message;
+  if(d.topic==='fish/temp') document.getElementById('t').innerText = d.message;
+  if(d.topic==='fish/pump') document.getElementById('p').innerText = d.message.toUpperCase();
+  if(d.topic==='fish/light') document.getElementById('l').innerText = d.message.toUpperCase();
+});
+function s(cmd){fetch('/send?cmd=fish/'+cmd);}
+fetch('/api/history').then(r=>r.json()).then(rows=>{
+  rows.forEach(r=>{document.getElementById('log').innerHTML += 
+    `<tr><td>${r.time}</td><td>${r.device}</td><td>${r.action}</td><td><b>${r.source}</b></td></tr>`});
+});
+</script>
+</body></html>
