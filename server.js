@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: "*" } });
 
-// Tạo database lưu lịch sử
+// Database
 const db = new sqlite3.Database('fish.db');
 db.run(`CREATE TABLE IF NOT EXISTS history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,9 +18,8 @@ db.run(`CREATE TABLE IF NOT EXISTS history (
   source TEXT
 )`);
 
-// MQTT Client kết nối chính server này
-const client = mqtt.connect('mqtt://localhost:1883');
-
+// MQTT Client
+const client = mqtt.connect('mqtt://0.0.0.0:1883');
 client.on('connect', () => {
   console.log('MQTT đã sẵn sàng!');
   client.subscribe('fish/#');
@@ -31,7 +30,6 @@ client.on('message', (topic, message) => {
   console.log(`→ ${topic}: ${msg}`);
   io.emit('data', { topic, message: msg });
 
-  // Lưu lịch sử khi có lệnh bật/tắt
   if (topic.includes('pump') || topic.includes('light')) {
     const device = topic.includes('pump') ? 'Bơm' : 'Đèn';
     const action = msg;
@@ -41,25 +39,46 @@ client.on('message', (topic, message) => {
   }
 });
 
-// Web server
+// Web + static files
 app.use(express.static('web'));
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/web/index.html');
 });
 
+// API lịch sử
 app.get('/api/history', (req, res) => {
   db.all('SELECT * FROM history ORDER BY id DESC LIMIT 100', [], (err, rows) => {
     res.json(rows);
   });
 });
 
+// API gửi lệnh từ web
+app.get('/send', (req, res) => {
+  const cmd = req.query.cmd;
+  if (cmd && cmd.startsWith('fish/')) {
+    const parts = cmd.split('/');
+    const topic = parts[0] + '/' + parts[1] + '/' + parts[2];
+    const action = parts[2];
+    const source = parts[3] || 'web';
+
+    console.log(`Web gửi lệnh: ${topic} -> ${action} (nguồn: ${source})`);
+    client.publish(topic, action);
+
+    const device = parts[1] === 'pump' ? 'Bơm' : 'Đèn';
+    db.run('INSERT INTO history(time, device, action, source) VALUES(datetime("now","localtime"), ?, ?, ?)', 
+      [device, action.toUpperCase(), source]);
+
+    res.send('OK');
+  } else {
+    res.status(400).send('Lệnh sai');
+  }
+});
+
+// Listen
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('');
   console.log('=====================================');
-  console.log('   SERVER NODE.JS ĐANG CHẠY TRÊN INTERNET!');
-  console.log(`   Web: http://localhost:${PORT}`);
-  console.log(`   Hoặc truy cập từ xa qua Render/ngrok`);
-  console.log('   MQTT: mqtt://0.0.0.0:1883');
+  console.log('   SERVER ĐÃ HOÀN HẢO – CHỈ CẦN UPLOAD ESP!');
+  console.log(`   URL: https://fish-server-nodejs-1.onrender.com`);
   console.log('=====================================');
 });
